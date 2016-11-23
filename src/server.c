@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
 
 	/* 1. 创建套接字 */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	printf("socket(%d) created.. \n", sockfd);
 
 	struct sockaddr_in serveraddr;
 	memset(&serveraddr, 0, sizeof(serveraddr));
@@ -70,6 +71,7 @@ int main(int argc, char *argv[])
 	serveraddr.sin_family = AF_INET;
 	//port
 	serveraddr.sin_port = htons(atoi(argv[1])); 
+	printf("port is %d.\n.", atoi(argv[1]));
 	/*
 	 * struct sockaddr_in {
 	 * 	short int sin_family;		//Internet地址族 AF_INET
@@ -95,6 +97,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	printf("binding ....\n");
 	/*3. 使用listen开始监听来自客户端的端口, 指定port监听，
 	 * 通知系统接收来自客户端的连接请求*/
 	if (listen(sockfd, 10) < 0) {
@@ -104,6 +107,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	printf("listening ....\n");
 	/*4. 通过accept从队列中获得一个客户端的请求连接,并返回新的socket描述符。*/
 	// accept() 获取连接和连接对应的描述符
 	struct sockaddr_in clientaddr;
@@ -112,6 +116,7 @@ int main(int argc, char *argv[])
 		int fd = accept(sockfd, (struct sockaddr *)&clientaddr,
 						&clientaddr_len);
 		//如果没有客户端连接，程序会阻塞在accept中，直到获得客户端连接
+		printf("accepted\n");
 
 		if (fd < 0) {
 			perror("accept error");
