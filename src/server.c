@@ -63,6 +63,11 @@ int main(int argc, char *argv[])
 
 	/* 1. 创建套接字 */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0) {
+		perror("socket error");
+		exit(1);
+	}
+
 	printf("socket(%d) created.. \n", sockfd);
 
 	struct sockaddr_in serveraddr;
@@ -116,7 +121,6 @@ int main(int argc, char *argv[])
 		int fd = accept(sockfd, (struct sockaddr *)&clientaddr,
 						&clientaddr_len);
 		//如果没有客户端连接，程序会阻塞在accept中，直到获得客户端连接
-		printf("accepted\n");
 
 		if (fd < 0) {
 			perror("accept error");
