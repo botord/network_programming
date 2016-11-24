@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include "msg.h"
 
 
 
@@ -41,16 +42,32 @@ int main(int argc, char *argv[])
 
 	/*3. 进行IO操作*/
 	char buffer[1024];
-	memset(buffer, '\0', sizeof(buffer));
-
+    const char *prompt = "> ";
 	size_t size;
-	if (size = read(sockfd, buffer, sizeof(buffer)) < 0) {
-		perror("read error");
-	}
-	printf("buffer: %s", buffer);
-	if (write(STDOUT_FILENO, buffer, size) != size) {
-		perror("write error");
-	}
+
+    while (1){
+        memset(buffer, 0, sizeof(buffer));
+        write(STDOUT_FILENO, prompt, 2);
+        size = read(STDIN_FILENO, buffer, sizeof(buffer));
+
+        if (size < 0) {
+            continue;
+        } 
+        buffer[size-1] = '\0';
+        if (size = write_msg(sockfd, buffer, sizeof(buffer)) < 0) {
+            perror("write msg error");
+            continue;
+        } else {
+            if (read_msg(sockfd, buffer, sizeof(buffer) < 0)) {
+                perror("read msg error");
+                continue;
+            } else {
+                printf("%s\n",buffer);
+            }            
+        }
+    }
+
+    close(sockfd);
 
 	return 0;
 }

@@ -6,13 +6,15 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include "msg.h"
 
 int sockfd;
 
-void sig_handler(int signo)
+void sig_int_handler(int signo)
 {
 	if (signo == SIGINT) {
 		printf("Server close\n");
@@ -21,6 +23,15 @@ void sig_handler(int signo)
 	}
 }
 
+
+void sig_chld_handler(int signo) {
+    if (signo == SIGCHLD) {
+        printf("child process destroyed.\n");
+        //回收子进程资源
+        wait(0);
+    }
+
+}
 //输出连接的客户端相关信息
 void print_addr(struct sockaddr_in *clientaddr) {
 	int port = ntohs(clientaddr->sin_port);
@@ -34,18 +45,35 @@ void print_addr(struct sockaddr_in *clientaddr) {
 
 }
 
-
 void service(int fd)
 {
-	long t = time(0);
-	char *s = ctime(&t);
-	size_t size =  strlen(s) * sizeof(char);
+    //和客户端进行读写操作，双向通信
+    char buff[1024];
 
-	//将从服务器端获得的系统时间写回到客户端
-	
-	if (write(fd, s, size) != size) {
-		perror("write error");
-	}
+    printf("starting read/write...\n");
+    while (1) {
+        memset(buff, 0, sizeof(buff));
+
+        size_t size;
+        if ((size = read_msg(fd, buff, sizeof(buff))) < 0) {
+            perror("read_msg error");
+            break;
+        } else if (size == 0) {
+            //如果读取结果是0，说明客户端已断开连接，这个时候直接退出
+            printf("client closed, will exit.\n");
+            break;
+        } else {
+            //write(STDOUT_FILENO, buff, sizeof(buff));
+            printf("%s\n", buff);
+
+            if ((size = write_msg(fd, buff, sizeof(buff)) < 0)) {
+                if (errno == EPIPE) {//管道错误
+                    break;
+                }
+                perror("protocol error");
+            }
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -56,11 +84,16 @@ int main(int argc, char *argv[])
 	}
 
 	/* 注册中断处理函数 */
-	if (signal(SIGINT, sig_handler) == SIG_ERR) {
-		perror("signal sigint error");
+	if (signal(SIGINT, sig_int_handler) == SIG_ERR) {
+		perror("signal sig_int error");
 		exit(1);
 	}
 
+    /*注册资源回收处理函数*/
+	if (signal(SIGCHLD, sig_chld_handler) == SIG_ERR) {
+		perror("signal sigchld error");
+		exit(1);
+	}
 	/* 1. 创建套接字 */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) {
@@ -76,7 +109,7 @@ int main(int argc, char *argv[])
 	serveraddr.sin_family = AF_INET;
 	//port
 	serveraddr.sin_port = htons(atoi(argv[1])); 
-	printf("port is %d.\n.", atoi(argv[1]));
+	printf("port is %d.\n", atoi(argv[1]));
 	/*
 	 * struct sockaddr_in {
 	 * 	short int sin_family;		//Internet地址族 AF_INET
@@ -92,7 +125,7 @@ int main(int argc, char *argv[])
 	 * */
 	//serveraddr.sin_addr.s_addr = '127.0.0.1';
 	//#define INADDR_ANY (uint32_t)0x00000000
-	//相应本机所有网卡的请求
+	//响应本机所有网卡的请求
 	serveraddr.sin_addr.s_addr = INADDR_ANY;
 	/* 2. 调用bind函数把socket和地址进行绑定 */
 	if (bind(sockfd, (struct sockaddr *)&serveraddr, 
@@ -102,37 +135,38 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	printf("binding ....\n");
-	/*3. 使用listen开始监听来自客户端的端口, 指定port监听，
-	 * 通知系统接收来自客户端的连接请求*/
-	if (listen(sockfd, 10) < 0) {
-		//服务器端存放一个队列，将接收到的客户端连接
-		//请求放到对应的队列当中
-		perror("listen error");
-		exit(1);
-	}
+    /*3. 开始监听端口*/
+    if (listen(sockfd, 10) < 0) {
+        perror("listen error");
+        exit(1);
+    }
+    printf("listening...\n");
+    struct sockaddr_in clientaddr;
+    socklen_t clientaddr_len = sizeof(clientaddr);
+    memset(&clientaddr, 0, clientaddr_len);
 
-	printf("listening ....\n");
-	/*4. 通过accept从队列中获得一个客户端的请求连接,并返回新的socket描述符。*/
-	// accept() 获取连接和连接对应的描述符
-	struct sockaddr_in clientaddr;
-	socklen_t clientaddr_len = sizeof(clientaddr);
 	while (1) {
 		int fd = accept(sockfd, (struct sockaddr *)&clientaddr,
 						&clientaddr_len);
-		//如果没有客户端连接，程序会阻塞在accept中，直到获得客户端连接
 
 		if (fd < 0) {
 			perror("accept error");
 			continue;
 		}
 
-		/*5. 调用io函数，read/write和客户端进行通信 */
-		print_addr(&clientaddr);
-		service(fd);
-
-		/*关闭socket*/
-		close(fd);
+        /*5. 启动子进程和客户端进行通信*/
+        pid_t pid = fork();
+        if (pid < 0) {
+            continue;
+        } else if (pid == 0) {//child process
+            printf("process created.\n");
+		    print_addr(&clientaddr);
+		    service(fd);
+            close(fd);
+            break;
+        } else {            //parent process
+            close(fd);
+        }
 	}
 
 
