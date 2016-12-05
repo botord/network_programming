@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
             perror("write msg error");
             continue;
         } else {
-            if (read_msg(sockfd, buffer, sizeof(buffer) < 0)) {
+            if (read_msg(sockfd, buffer, sizeof(buffer)) < 0) {
                 perror("read msg error");
                 continue;
             } else {

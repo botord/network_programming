@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 #include "msg.h"
 
 int sockfd;
@@ -23,15 +24,6 @@ void sig_int_handler(int signo)
 	}
 }
 
-
-void sig_chld_handler(int signo) {
-    if (signo == SIGCHLD) {
-        printf("child process destroyed.\n");
-        //回收子进程资源
-        wait(0);
-    }
-
-}
 //输出连接的客户端相关信息
 void print_addr(struct sockaddr_in *clientaddr) {
 	int port = ntohs(clientaddr->sin_port);
@@ -50,7 +42,7 @@ void service(int fd)
     //和客户端进行读写操作，双向通信
     char buff[1024];
 
-    printf("starting read/write...\n");
+    printf("starting IO..\n");
     while (1) {
         memset(buff, 0, sizeof(buff));
 
@@ -66,7 +58,7 @@ void service(int fd)
             //write(STDOUT_FILENO, buff, sizeof(buff));
             printf("%s\n", buff);
 
-            if ((size = write_msg(fd, buff, sizeof(buff)) < 0)) {
+            if ((write_msg(fd, buff, sizeof(buff)) < 0)) {
                 if (errno == EPIPE) {//管道错误
                     break;
                 }
@@ -74,6 +66,31 @@ void service(int fd)
             }
         }
     }
+}
+
+//通过fd获取客户端相关信息
+void out_fd(int fd)
+{
+    struct sockaddr_in clientaddr;
+    socklen_t len = sizeof(clientaddr);
+    if (getpeername(fd, (struct sockaddr *)&clientaddr, &len) < 0) {
+        perror("getpeername failed");
+        return;
+    }
+
+    char ip[16];
+    memset(ip, 0, sizeof(ip));
+    int port = ntohs(clientaddr.sin_port);
+    inet_ntop(AF_INET, &clientaddr.sin_addr.s_addr, ip, sizeof(ip));
+    printf("%16s: %5d closed\n", ip, port);
+}
+
+void * thread_fn(void *arg)
+{
+    int fd = (int *)arg;
+    service(fd);
+    out_fd(fd);
+    close(fd);
 }
 
 int main(int argc, char *argv[])
@@ -89,11 +106,6 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-    /*注册资源回收处理函数*/
-	if (signal(SIGCHLD, sig_chld_handler) == SIG_ERR) {
-		perror("signal sigchld error");
-		exit(1);
-	}
 	/* 1. 创建套接字 */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) {
@@ -145,30 +157,33 @@ int main(int argc, char *argv[])
     socklen_t clientaddr_len = sizeof(clientaddr);
     memset(&clientaddr, 0, clientaddr_len);
 
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
+
+    /*4. 调用accept获取客户端连接,如果没有获得，主进程会阻塞在这里*/
+
+    int err;
+
 	while (1) {
-		int fd = accept(sockfd, (struct sockaddr *)&clientaddr,
-						&clientaddr_len);
+        //主线程不能调用pthread_join，不然会hang在这里
+        //套接字里包含了协议信息，服务器端和客户单的IO端口，IP地址
+		int fd = accept(sockfd, NULL, NULL);
 
 		if (fd < 0) {
 			perror("accept error");
 			continue;
 		}
 
-        /*5. 启动子进程和客户端进行通信*/
-        pid_t pid = fork();
-        if (pid < 0) {
-            continue;
-        } else if (pid == 0) {//child process
-            printf("process created.\n");
-		    print_addr(&clientaddr);
-		    service(fd);
-            close(fd);
-            break;
-        } else {            //parent process
-            close(fd);
+        /*5. 以分离状态启动子线程和客户端进行通信*/
+        pthread_t thread;
+        if ((err = pthread_create(&thread, &attr, thread_fn, 
+                                    (void *)fd)) != 0) {
+            perror("pthread create failed");
         }
-	}
 
+        pthread_attr_destroy(&attr);
+    }
 
 	return 0; 
 }
