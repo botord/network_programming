@@ -88,8 +88,8 @@ void out_fd(int fd)
 void * thread_fn(void *arg)
 {
     int fd = *(int *)arg;
-    service(fd);
     out_fd(fd);
+    service(fd);
     close(fd);
 }
 
