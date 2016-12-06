@@ -87,7 +87,7 @@ void out_fd(int fd)
 
 void * thread_fn(void *arg)
 {
-    int fd = (int *)arg;
+    int fd = *(int *)arg;
     service(fd);
     out_fd(fd);
     close(fd);
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
         perror("listen error");
         exit(1);
     }
-    printf("listening...\n");
+
     struct sockaddr_in clientaddr;
     socklen_t clientaddr_len = sizeof(clientaddr);
     memset(&clientaddr, 0, clientaddr_len);
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
         /*5. 以分离状态启动子线程和客户端进行通信*/
         pthread_t thread;
         if ((err = pthread_create(&thread, &attr, thread_fn, 
-                                    (void *)fd)) != 0) {
+                                    (void *)&fd)) != 0) {
             perror("pthread create failed");
         }
 
