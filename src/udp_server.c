@@ -53,7 +53,7 @@ void service(int fd)
     char buff[1024];
     memset(buff, 0, sizeof(buff));
     //接收客户端的数据报文
-    //为防止客户端断开连接，可以设置超时控制，套接字选项里也
+    //为防止客户端断开连接后继续等待，可以设置超时控制，套接字选项里也
     //可以进行设置
     if (recvfrom(fd, buff, sizeof(buff), 0, 
                  (struct sockaddr *)&clientaddr, &len) < 0) {
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
     serveraddr.sin_port = htons(atoi(argv[1]));
     serveraddr.sin_addr.s_addr = INADDR_ANY;
     if (bind(sockfd, (struct sockaddr *)&serveraddr, 
-        sizeof(serveraddr)) < 0) {
+                            sizeof(serveraddr)) < 0) {
         perror("bind error");
     }
 

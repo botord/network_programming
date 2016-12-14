@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    if (signal(SIGINT, sig_int_handler) < 0) {
+    if (signal(SIGINT, sig_int_handler) == SIG_ERR) {
         perror("sigal SIGINT error");
         exit(1);
     }
@@ -124,6 +124,7 @@ int main(int argc, char *argv[])
     if (connect(sockfd, (struct sockaddr *)&serveraddr, 
                 sizeof(serveraddr)) < 0) {
         perror("connect error");
+        exit(1);
     }
 
     char buffer[1024];
