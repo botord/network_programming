@@ -16,12 +16,13 @@
 #include <arpa/inet.h>
 
 
+#define DEBUG 0
 int sockfd;
 
 void sig_handler(int signo)
 {
     if (signo == SIGINT) {
-        char *info = "server close";
+        char info[] = "server close\n";
         write(STDOUT_FILENO, info, sizeof(info));
         exit(1);
     }
@@ -58,12 +59,18 @@ static unsigned int get_ip_by_name(char *name)
 int main(int argc, char *argv[])
 {
     if (argc < 3) {
-        printf("Usage: %s ip port", argv[0]);
+        printf("Usage: %s ip port\n", argv[0]);
         exit(1);
     }
 
     if (signal(SIGINT, sig_handler) == SIG_ERR) {
         perror("sig int error");
+        exit(1);
+    }
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("socket error");
         exit(1);
     }
 
@@ -74,25 +81,33 @@ int main(int argc, char *argv[])
     serveraddr.sin_port = htons(atoi(argv[2]));
     unsigned int ip = get_ip_by_name(argv[1]);
 
+    if (DEBUG) {
+        printf("ip = %d\n", ip);
+        char addr[16];
+        inet_ntop(AF_INET, &ip, addr, sizeof(addr));
+        printf("addr = %s\n", addr);
+    }
     if (ip != 0) {
         serveraddr.sin_addr.s_addr = ip;
     } else {
         inet_pton(AF_INET, argv[1], &serveraddr.sin_addr.s_addr);
     }
 
+    socklen_t addrlen = sizeof(serveraddr);
     if (connect(sockfd, (struct sockaddr *)&serveraddr, 
-                sizeof(serveraddr)) < 0) {
+                addrlen) < 0) {
         perror("connect error");
         exit(1);
     }
 
     char buffer[1024];
     size_t size;
-    const char *prompt = "> ";
-    strcpy(buffer, "welcome to www.haodong.org");
-    write(STDOUT_FILENO, buffer, sizeof(buffer));
+    const char prompt[] = "> ";
+//    strcpy(buffer, "welcome to www.haodong.org");
+//    write(STDOUT_FILENO, buffer, sizeof(buffer));
 
     while (1) {
+        memset(buffer, 0, sizeof(buffer));
         write(STDOUT_FILENO, prompt, sizeof(prompt));
         size = read(STDIN_FILENO, buffer, sizeof(buffer));
         if (size < 0) {
@@ -100,7 +115,7 @@ int main(int argc, char *argv[])
         }
         buffer[size - 1] = '\0';
 
-        if (size = write(sockfd, buffer, size) < 0) {
+        if (size = write(sockfd, buffer, sizeof(buffer)) < 0) {
             perror("write error");
             continue;
         } else {

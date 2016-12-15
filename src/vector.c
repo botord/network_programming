@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 #include "vector.h"
 
 static void encapacity(VectorFd *vfd)
@@ -38,7 +39,7 @@ VectorFd* create_vector_fd(void)
     assert(vfd->fd != NULL);
 
     vfd->counter = 0;
-    vfd->max_counter = 0;
+    vfd->max_counter = 5;
 }
 
 void destroy_vector_fd(VectorFd *vfd)
@@ -71,7 +72,7 @@ void add_fd(VectorFd *vfd, int fd)
 
 }
 
-static int indexof (VectorFd *vfd, int fd)
+static int indexof(VectorFd *vfd, int fd)
 {
     int i = 0;
     for (;i < vfd->counter; i++) {
@@ -96,3 +97,18 @@ void remove_fd(VectorFd *vfd, int fd)
     }
 }
 
+void print_fd(VectorFd *vfd)
+{
+    int counter = vfd->counter;
+    int max_counter = vfd->max_counter;
+
+    printf("vfd->max_counter = %d\n", vfd->max_counter);
+    printf("vfd->counter = %d\n", vfd->counter);
+
+    int i = 0;
+    for (; i<counter; i++) {
+        printf("vfd->fd[%d] = %d\t", i, vfd->fd[i]);
+    }
+
+    printf("\n");
+}

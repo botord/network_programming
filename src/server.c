@@ -82,7 +82,6 @@ void out_fd(int fd)
     memset(ip, 0, sizeof(ip));
     int port = ntohs(clientaddr.sin_port);
     inet_ntop(AF_INET, &clientaddr.sin_addr.s_addr, ip, sizeof(ip));
-    printf("%16s: %5d closed\n", ip, port);
 }
 
 void * thread_fn(void *arg)

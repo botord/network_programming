@@ -44,13 +44,14 @@ void service(int fd)
     char buff[1024];
     size_t size;
 
+    memset(buff, 0, sizeof(buff));
     /*非阻塞方式，读不到数据会直接返回，因此不需要判断
     * 返回结果小于0的情况，直接服务下一个客户端*/
     size = read(fd, buff, sizeof(buff));
 
     if (size == 0) {
         /*客户端关闭连接*/
-        char *info = "client closed";
+        const char info[] = "client closed";
         
         write(STDOUT_FILENO, info, sizeof(info));
 
@@ -59,6 +60,7 @@ void service(int fd)
         close(fd);
     } else if (size > 0) {
         write(STDOUT_FILENO, buff, sizeof(buff));
+        puts("");
         if (write(fd, buff, size) < size) {
             /*客户端关闭连接*/
             if (errno == EPIPE) {
@@ -69,17 +71,15 @@ void service(int fd)
         }
         
     }
-
-
-    
 }
 
 void *th_fn(void *args)
 {
-   int i;
+    int i;
     while (1) {
         i = 0;
-        for (; i < vfd->counter; i++) {
+        //遍历动态数组中的socket描述符
+        for (i=0; i<(vfd->counter); i++) {
             service(get_fd(vfd, i));
         }
     }
@@ -100,39 +100,33 @@ void out_addr(struct sockaddr_in *clientaddr)
 
 int main(int argc, char *argv[])
 {
-    printf("0");
     if (argc < 2) {
         fprintf(stderr, "Usage: %s(port)\n", argv[0]);
         exit(1);
     }
 
-    printf("1");
     if (signal(SIGINT, sig_handler) == SIG_ERR) {
         perror("signal sig_int error");
         exit(1);
     }
-    printf("2");
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         perror("socket error");
         exit(1);
     }
-    printf("3");
 
     struct sockaddr_in serveraddr;
     memset(&serveraddr, 0, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
-    serveraddr.sin_port = htons(atoi(argv[2]));
+    serveraddr.sin_port = htons(atoi(argv[1]));
     serveraddr.sin_addr.s_addr = INADDR_ANY;
-    printf("4");
 
     if (bind(sockfd, (struct sockaddr *)&serveraddr, 
              sizeof(serveraddr)) < 0) {
         perror("bind error");
         exit(1);
     }
-    printf("5");
     
     if (listen(sockfd, 10) < 0) {
         perror("listen error");
@@ -142,7 +136,6 @@ int main(int argc, char *argv[])
     struct sockaddr_in clientaddr;
     socklen_t clientaddr_len = sizeof(clientaddr);
 
-    printf("6");
     /*创建存放fd的动态数组*/
     vfd = create_vector_fd();
 
@@ -159,8 +152,9 @@ int main(int argc, char *argv[])
                               th_fn, (void *)0) != 0)) {
         perror("thread create failed");
         exit(1);
-
     }
+
+    pthread_attr_destroy(&attr);
     /*
      * 主控线程将获得客户端的连接，并将新的socket描述符放置动态数组中
      * 启动的子线程负责遍历动态数组中socket描述符并和对应的客户端进行
@@ -168,10 +162,10 @@ int main(int argc, char *argv[])
      * */
     while (1) {
         int fd = accept(sockfd, 
-                        (struct sockaddr*)&clientaddr, &clientaddr_len);
+                        (struct sockaddr *)&clientaddr, &clientaddr_len);
         if (fd < 0) {
             perror("accept error");
-            exit(1);
+            continue;
         }
         out_addr(&clientaddr);
         /*将读写修改为非阻塞方式*/
@@ -183,5 +177,6 @@ int main(int argc, char *argv[])
 
         /*将返回的fd加入到之前创建的动态数组中*/
         add_fd(vfd, fd);
+        print_fd(vfd);
     }
 }
