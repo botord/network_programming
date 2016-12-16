@@ -13,7 +13,7 @@
 static void encapacity(VectorFd *vfd)
 {
     if (vfd->counter >= vfd->max_counter) {
-        int *fds = (int *) calloc(vfd->counter + 5, sizeof(int));
+        int *fds = (int *) calloc((vfd->counter) + 5, sizeof(int));
         /*
         int *fds = vfd->fd;
         vfd->fd = realloc(vfd->fd, vfd->counter + 5);
@@ -39,7 +39,7 @@ VectorFd* create_vector_fd(void)
     assert(vfd->fd != NULL);
 
     vfd->counter = 0;
-    vfd->max_counter = 5;
+    vfd->max_counter = 0;
 }
 
 void destroy_vector_fd(VectorFd *vfd)
@@ -95,6 +95,7 @@ void remove_fd(VectorFd *vfd, int fd)
     for (; i < vfd->max_counter; i++) {
         vfd->fd[i] = vfd->fd[i+1];
     }
+    vfd->counter--;
 }
 
 void print_fd(VectorFd *vfd)

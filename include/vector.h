@@ -11,12 +11,13 @@ typedef struct {
     int *fd;
     int counter;
     int max_counter;
-} VectorFd;
+}VectorFd;
 
 extern VectorFd* create_vector_fd(void);
 extern void destroy_vector_fd(VectorFd *);
 extern int get_fd(VectorFd *, int index);
 extern void add_fd(VectorFd *, int fd);
 extern void remove_fd(VectorFd *, int fd);
+extern void print_fd(VectorFd *);
 
 #endif

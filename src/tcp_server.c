@@ -45,8 +45,10 @@ void service(int fd)
     size_t size;
 
     memset(buff, 0, sizeof(buff));
-    /*非阻塞方式，读不到数据会直接返回，因此不需要判断
-    * 返回结果小于0的情况，直接服务下一个客户端*/
+    /*
+     * 非阻塞方式，读不到数据会直接返回，因此不需要判断
+     * 返回结果小于0的情况，直接服务下一个客户端
+     * */
     size = read(fd, buff, sizeof(buff));
 
     if (size == 0) {
@@ -60,16 +62,14 @@ void service(int fd)
         close(fd);
     } else if (size > 0) {
         write(STDOUT_FILENO, buff, sizeof(buff));
-        puts("");
-        if (write(fd, buff, size) < size) {
-            /*客户端关闭连接*/
+        if (write(fd, buff, size) != size) {
             if (errno == EPIPE) {
+                /*客户端关闭连接*/
                 perror("write error");
                 remove_fd(vfd, fd);
                 close(fd);
             }
         }
-        
     }
 }
 
@@ -177,6 +177,5 @@ int main(int argc, char *argv[])
 
         /*将返回的fd加入到之前创建的动态数组中*/
         add_fd(vfd, fd);
-        print_fd(vfd);
     }
 }
