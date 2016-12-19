@@ -69,7 +69,6 @@ void add_fd(VectorFd *vfd, int fd)
     }
 
     vfd->fd[vfd->counter++] = fd;
-
 }
 
 static int indexof(VectorFd *vfd, int fd)

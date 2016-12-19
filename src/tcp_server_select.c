@@ -10,12 +10,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <time.h>
 #include <pthread.h>
+#include <syslog.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "vector.h"
 
@@ -23,13 +27,6 @@ void *th_fn(void *arg);
 void out_addr(struct sockaddr_in *);
 void service(int fd);
 
-void sig_handler(int signo)
-{
-    if (signo == SIGINT){
-        perror("server close");
-        exit(1);
-    }
-}
 
 int sockfd;
 VectorFd *vfd;
@@ -37,17 +34,37 @@ VectorFd *vfd;
 int main(int argc, char *argv[])
 {
     if (argc < 2) {
-        printf("Usage: %s(port)", argv[0]);
-    }
-
-    if (signal(SIGINT, sig_handler) == SIG_ERR) {
-        perror("signal error");
+        printf("Usage: %s (port)", argv[0]);
         exit(1);
     }
 
+    /*守护进程编程的五个步骤*/
+    /*1. 创建屏蔽字为0*/
+    umask(0);
+
+    /*2. 调用fork函数创建子进程,父进程退出*/
+    pid_t pid = fork();
+    if (pid > 0) {exit(0);}
+
+    /*3. 调用setsid创建新会话*/
+    setsid();
+
+    /*4. 将当前工作目录更改为根目录*/
+    chdir("/");
+
+    /*5. 关闭不需要的文件描述符*/
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    /*打开系统日志服务的一个连接*/
+    openlog(argv[0], LOG_PID, LOG_SYSLOG);
+    
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
     if (sockfd < 0) {
-        perror("socket error");
+        //将日志信息写入系统日志文件中(/var/log/syslog)
+        syslog(LOG_DEBUG, "SOCKET: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -59,12 +76,12 @@ int main(int argc, char *argv[])
 
     if (bind(sockfd, (struct sockaddr *)&serveraddr, 
                           sizeof(serveraddr)) < 0) {
-        perror("bind error");
+        syslog(LOG_DEBUG, "bind: %s\n", strerror(errno));
         exit(1);
     } 
 
     if (listen(sockfd, 10) < 0) {
-        perror("listen error");
+        syslog(LOG_DEBUG, "bind: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -82,7 +99,7 @@ int main(int argc, char *argv[])
     int err;
     if ((err = pthread_create(&th, &attr, 
                              th_fn, (void *)0)) != 0) {
-        perror("thread create error");
+        syslog(LOG_DEBUG, "pthread_create: %s\n", strerror(errno));
         exit(1);
     }
 
@@ -102,12 +119,15 @@ int main(int argc, char *argv[])
                                                 &socketlen);
 
         if (fd < 0) {
-            perror("accept error");
+            syslog(LOG_DEBUG, "accept: %s\n", strerror(errno));
             continue;
         }
 
         out_addr(&clientaddr);
+        //返回的socket描述符fd加入到动态数组
+        ////返回的socket描述符fd加入到动态数组
         add_fd(vfd, fd);
+        print_fd(vfd);
     }
 }
 /* 遍历动态数值中所有的描述符并加入描述符集，同时此函数返回动态数
@@ -140,7 +160,7 @@ void *th_fn(void *arg)
     //准备好描述符的数量
     int n = 0;
     //所有描述符的最大值
-    int maxfd = 0;
+    int maxfd;
     //描述符集
     fd_set set;
 
@@ -166,16 +186,15 @@ void *th_fn(void *arg)
                 }
             }
             
-        } else {
-            //超时
-            t.tv_sec = 2;
-            t.tv_usec = 0;
-            //重新遍历动态数组
-            maxfd = add_set(&set);
         }
-        
+        //超时
+        t.tv_sec = 2;
+        t.tv_usec = 0;
+        //重新遍历动态数组
+        maxfd = add_set(&set);
     }
-    
+
+    return (void *)0;
 }
 
 void service(int fd)
@@ -186,16 +205,20 @@ void service(int fd)
 
     if (size == 0) {
         //printf("client closed");
-        write(STDOUT_FILENO, "client closed\n", 15);
+        syslog(LOG_DEBUG, "client closed");
+        //write(STDOUT_FILENO, "client closed\n", 15);
         remove_fd(vfd, fd);
         close(fd);
     } else if (size > 0) {
-        write(STDOUT_FILENO, buffer, sizeof(buffer));
+        //write(STDOUT_FILENO, buffer, sizeof(buffer));
         //printf("%s\n", buffer);
+        syslog(LOG_DEBUG, "%s", buffer);
 
-        if (write(fd, buffer, sizeof(buffer)) != size) {
+        if (write(fd, buffer, sizeof(buffer)) < size) {
             if (errno == EPIPE) {
-                perror("write error");
+                syslog(LOG_DEBUG, "write: %s\n", 
+                                    strerror(errno));
+//                perror("write error");
                 remove_fd(vfd, fd);
                 close(fd);
             }
@@ -208,10 +231,10 @@ void out_addr(struct sockaddr_in *sockaddr)
     char ip[16];
     memset(ip, 0, sizeof(ip));
 
-    inet_ntop(sockaddr->sin_family, 
+    inet_ntop(AF_INET,
               &sockaddr->sin_addr.s_addr, ip, sizeof(ip));
 
     int port = ntohs(sockaddr->sin_port);
-    printf("%s(%d) connected\n",ip, port);
+    syslog(LOG_DEBUG, "%s (%d) connected\n", ip, port);
 }
 
