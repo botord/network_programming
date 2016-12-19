@@ -8,9 +8,13 @@ COMPLETED
 
 --gcc -o obj/msg.o -Iinclude -c src/msg.c 
 
+--gcc -o obj/vector.o -Iinclude -c src/vector.c
+
 --gcc -o bin/client -Iinclude obj/msg.o src/client.c
 
 --gcc -o bin/server -Iinclude obj/msg.o src/server.c
+
+--gcc -o bin/tcp_server_select -Iinclude obj/vector.o src/tcp_server_select.c
 
 --服务器多线程支持
 
@@ -20,6 +24,7 @@ COMPLETED
 
 --子线程调用select委托内核检查传入的描述符是否准备好，根据返回的已准备好的描述符，进行IO操作
 
-TODO
+--select model on server
 
---select/poll model on server
+--deamon process on server
+
