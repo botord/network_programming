@@ -205,7 +205,7 @@ void service(int fd)
 
     if (size == 0) {
         //printf("client closed");
-        syslog(LOG_DEBUG, "client closed");
+        syslog(LOG_DEBUG, "client closed\n");
         //write(STDOUT_FILENO, "client closed\n", 15);
         remove_fd(vfd, fd);
         close(fd);
